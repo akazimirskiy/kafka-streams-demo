@@ -1,13 +1,12 @@
 package ru.kazimir.kafka.message;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
 @Data
 @RequiredArgsConstructor
+@EqualsAndHashCode(callSuper = false)
 public class MessageData {
     private final String generatorName;
-    public MessageData(byte[] byteArray) {
-        this.generatorName = ""; //TODO
-    }
 }

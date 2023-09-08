@@ -3,6 +3,7 @@ package ru.kazimir.kafka;
 import ru.kazimir.kafka.message.MessageGenerator;
 import ru.kazimir.kafka.message.MessageSender;
 
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 public class Main {
@@ -11,10 +12,15 @@ public class Main {
         Configurator config = new Configurator();
         config.init();
 
-        MessageGenerator messageGenerator = new MessageGenerator("Generator 1", new MessageSender());
-        messageGenerator.start();
+        MessageSender sender = new MessageSender();
+        List<MessageGenerator> generators = List.of(
+                new MessageGenerator("Generator 1", sender),
+                new MessageGenerator("Generator 2", sender),
+                new MessageGenerator("Generator 3", sender)
+                );
+        generators.forEach(MessageGenerator::start);
         Thread.sleep(10000);
-        messageGenerator.doStop();
+        generators.forEach(MessageGenerator::doStop);
         config.tearDown();
     }
 }
