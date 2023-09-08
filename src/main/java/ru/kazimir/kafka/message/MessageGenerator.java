@@ -1,8 +1,6 @@
 package ru.kazimir.kafka.message;
 
 import lombok.Getter;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import ru.kazimir.kafka.Constants;
 
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
@@ -11,11 +9,11 @@ public class MessageGenerator extends Thread {
 
     Logger log = Logger.getLogger(this.getClass().getSimpleName());
 
-    private MessageSender messageSender;
+    private final MessageSender messageSender;
     private long timeoutMS = 1000;
     private boolean doStop;
     @Getter
-    private String generatorName;
+    private final String generatorName;
 
     public MessageGenerator(String generatorName, MessageSender sender) {
         this.messageSender = sender;
@@ -24,20 +22,16 @@ public class MessageGenerator extends Thread {
 
     @Override
     public void run() {
-        log.info("MessageGenerator has been started");
+        log.info(getGeneratorName() + " has been started");
         while(!doStop) {
-            ProducerRecord<String, StreamMessage> message = new ProducerRecord<>(Constants.STREAMING_TOPIC_NAME, generateMessage());
             try {
                 messageSender.send(generateMessage());
-                log.info("Message sent " + message);
                 Thread.sleep(timeoutMS);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            } catch (ExecutionException e) {
+            } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
         }
-        log.info("MessageGenerator has been stopped");
+        log.info(getGeneratorName() + " has been stopped");
     }
 
     public void doStop() {
@@ -45,11 +39,6 @@ public class MessageGenerator extends Thread {
     }
 
     private StreamMessage generateMessage() {
-        return new StreamMessage() {
-            @Override
-            public MessageData getMessageData() {
-                return new MessageData(getGeneratorName());
-            }
-        };
+        return () -> new MessageData(getGeneratorName());
     }
 }

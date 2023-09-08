@@ -7,14 +7,17 @@ import ru.kazimir.kafka.Configurator;
 import ru.kazimir.kafka.Constants;
 
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Logger;
 
 public class MessageSender {
-    private Producer<String, StreamMessage> messageProducer;
+    Logger log = Logger.getLogger(this.getClass().getSimpleName());
+    private final Producer<String, StreamMessage> messageProducer;
     public MessageSender() {
-        messageProducer = new KafkaProducer<String, StreamMessage>(Configurator.getKafkaProps());
+        messageProducer = new KafkaProducer<>(Configurator.getKafkaProps());
     }
     public void send(StreamMessage message) throws ExecutionException, InterruptedException {
         ProducerRecord<String, StreamMessage> record = new ProducerRecord<>(Constants.STREAMING_TOPIC_NAME, message);
         messageProducer.send(record).get();
+        log.info("Message sent " + message.getMessageData());
     }
 }
