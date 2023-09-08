@@ -21,6 +21,13 @@ public class Main {
         generators.forEach(MessageGenerator::start);
         Thread.sleep(10000);
         generators.forEach(MessageGenerator::doStop);
+        generators.forEach(messageGenerator -> {
+            try {
+                messageGenerator.join();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
         config.tearDown();
     }
 }
