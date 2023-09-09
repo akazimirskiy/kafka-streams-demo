@@ -11,6 +11,7 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.TimeWindows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.kazimir.kafka.message.MessageData;
@@ -18,6 +19,7 @@ import ru.kazimir.kafka.message.StreamMessage;
 import ru.kazimir.kafka.message.StreamMessageDeserializer;
 import ru.kazimir.kafka.message.StreamMessageSerializer;
 
+import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 
@@ -59,6 +61,10 @@ public class StreamAnalyzer {
 
         streamsBuilder.stream(Constants.STREAMING_TOPIC_NAME, Consumed.with(Serdes.String(), streamMessageSerdes));
         messageStream.peek(((key, value) -> log.info("Received message " + value.getMessageData())));
+
+        //Create a window of 5 seconds
+        TimeWindows tumblingWindow = TimeWindows.of(Duration.ofSeconds(5)).grace(Duration.ZERO);
+
 
         final Topology topology = streamsBuilder.build();
         log.info(topology.describe().toString());
