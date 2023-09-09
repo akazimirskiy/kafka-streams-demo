@@ -9,4 +9,6 @@ import lombok.RequiredArgsConstructor;
 @EqualsAndHashCode(callSuper = false)
 public class MessageData {
     private final String generatorName;
+    private final MessageType messageType;
+    private final Float businessValue;
 }

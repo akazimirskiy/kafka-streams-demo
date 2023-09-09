@@ -2,6 +2,8 @@ package ru.kazimir.kafka.message;
 
 import lombok.Getter;
 
+import java.util.Arrays;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
 
@@ -10,7 +12,6 @@ public class MessageGenerator extends Thread {
     Logger log = Logger.getLogger(this.getClass().getSimpleName());
 
     private final MessageSender messageSender;
-    private long timeoutMS = 1000;
     private boolean doStop;
     @Getter
     private final String generatorName;
@@ -26,7 +27,7 @@ public class MessageGenerator extends Thread {
         while(!doStop) {
             try {
                 messageSender.send(generateMessage());
-                Thread.sleep(timeoutMS);
+                Thread.sleep((new Random()).nextLong(1000)+1000);
             } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
@@ -39,6 +40,9 @@ public class MessageGenerator extends Thread {
     }
 
     private StreamMessage generateMessage() {
-        return () -> new MessageData(getGeneratorName());
+        return () -> new MessageData(
+                getGeneratorName(),
+                Arrays.asList(MessageType.values()).get((new Random()).nextInt((MessageType.values().length))),
+                (new Random()).nextFloat(10f));
     }
 }
