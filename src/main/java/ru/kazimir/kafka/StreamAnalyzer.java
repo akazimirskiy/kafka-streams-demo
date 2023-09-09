@@ -1,5 +1,7 @@
 package ru.kazimir.kafka;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
@@ -11,6 +13,7 @@ import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.kazimir.kafka.message.MessageData;
 import ru.kazimir.kafka.message.StreamMessage;
 import ru.kazimir.kafka.message.StreamMessageDeserializer;
 import ru.kazimir.kafka.message.StreamMessageSerializer;
@@ -20,6 +23,7 @@ import java.util.concurrent.CountDownLatch;
 
 public class StreamAnalyzer {
     Logger log = LoggerFactory.getLogger(this.getClass().getSimpleName());
+    ObjectMapper objectMapper = new ObjectMapper();
     KafkaStreams streams;
     CountDownLatch latch;
 
@@ -38,19 +42,24 @@ public class StreamAnalyzer {
         props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 100);
 
         final StreamsBuilder streamsBuilder = new StreamsBuilder();
-        KStream<String, StreamMessage> messageStream = streamsBuilder.stream(
-                Constants.STREAMING_TOPIC_NAME, Consumed.with(Serdes.String(), streamMessageSerdes));
-//        messageStream.mapValues(new ValueMapper<String, StreamMessage>() {
-//            @Override
-//            public StreamMessage apply(String inputObjectString) {
-//                try {
-//                    return objectMapper.readValue(inputObjectString, StreamMessage.class);
-//                } catch (JsonProcessingException e) {
-//                    throw new RuntimeException(e);
-//                }
-//            }
-//        });
+        KStream<String, String> objectStream = streamsBuilder.stream(
+                Constants.STREAMING_TOPIC_NAME, Consumed.with(Serdes.String(), Serdes.String()));
+
+        KStream<String, StreamMessage> messageStream = objectStream.mapValues(
+                value -> {
+                    try {
+                        MessageData messageData = objectMapper.readValue(value, MessageData.class);
+                        return () -> messageData;
+                    } catch (JsonProcessingException e) {
+                        log.info("Failed parsing message. Skipping object: {}", value);
+                    }
+                    return null;
+                }
+        );
+
+        streamsBuilder.stream(Constants.STREAMING_TOPIC_NAME, Consumed.with(Serdes.String(), streamMessageSerdes));
         messageStream.peek(((key, value) -> log.info("Received message " + value.getMessageData())));
+
         final Topology topology = streamsBuilder.build();
         log.info(topology.describe().toString());
 
