@@ -1,14 +1,16 @@
 package ru.kazimir.kafka.message;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
+import lombok.NoArgsConstructor;
 
 @Data
-@RequiredArgsConstructor
+@NoArgsConstructor
+@AllArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class MessageData {
-    private final String generatorName;
-    private final MessageType messageType;
-    private final Float businessValue;
+    private String generatorName;
+    private MessageType messageType;
+    private Float businessValue;
 }

@@ -5,37 +5,36 @@ import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.KafkaFuture;
-import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.StreamsConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 import ru.kazimir.kafka.message.StreamMessageDeserializer;
 import ru.kazimir.kafka.message.StreamMessageSerializer;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
-import java.util.logging.Logger;
 
 public class KafkaConfigurator {
 
-    Logger log = Logger.getLogger(this.getClass().getSimpleName());
+    private static final Logger log = LoggerFactory.getLogger(KafkaConfigurator.class);
     private static KafkaContainer kafkaContainer;
+    private static Properties kafkaProps;
     public static Properties getKafkaProps() {
-        Properties kafkaProps = new Properties();
-        kafkaProps.put("key.serializer", StringSerializer.class);
-        kafkaProps.put("key.deserializer", StringDeserializer.class);
-        kafkaProps.put("value.serializer", StreamMessageSerializer.class);
-        kafkaProps.put("value.deserializer", StreamMessageDeserializer.class);
-        kafkaProps.put(StreamsConfig.APPLICATION_ID_CONFIG, "kafka-streams-demo");
-        kafkaProps.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
-        kafkaProps.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        kafkaProps.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        kafkaProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,"earliest");
-        kafkaProps.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
-        kafkaProps.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 100);
+        if (Objects.isNull(kafkaProps)) {
+            kafkaProps = new Properties();
+            kafkaProps.put("key.serializer", StringSerializer.class);
+            kafkaProps.put("key.deserializer", StringDeserializer.class);
+            kafkaProps.put("value.serializer", StreamMessageSerializer.class);
+            kafkaProps.put("value.deserializer", StreamMessageDeserializer.class);
+            kafkaProps.put(StreamsConfig.APPLICATION_ID_CONFIG, "kafka-streams-demo");
+            kafkaProps.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
+            kafkaProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");}
         return kafkaProps;
     }
 

@@ -1,15 +1,16 @@
 package ru.kazimir.kafka.message;
 
 import lombok.Getter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.logging.Logger;
 
 public class MessageGenerator extends Thread {
 
-    Logger log = Logger.getLogger(this.getClass().getSimpleName());
+    private final Logger log;
 
     private final MessageSender messageSender;
     private boolean doStop;
@@ -17,8 +18,10 @@ public class MessageGenerator extends Thread {
     private final String generatorName;
 
     public MessageGenerator(String generatorName, MessageSender sender) {
+        log = LoggerFactory.getLogger(generatorName);
         this.messageSender = sender;
         this.generatorName = generatorName;
+        this.setName(generatorName);
     }
 
     @Override
