@@ -19,7 +19,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
 
-public class Configurator {
+public class KafkaConfigurator {
 
     Logger log = Logger.getLogger(this.getClass().getSimpleName());
     private static KafkaContainer kafkaContainer;

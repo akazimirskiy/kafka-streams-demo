@@ -9,7 +9,7 @@ import java.util.concurrent.ExecutionException;
 public class Main {
 
     public static void main(String[] args) throws InterruptedException, ExecutionException {
-        Configurator config = new Configurator();
+        KafkaConfigurator config = new KafkaConfigurator();
         config.init();
 
         MessageSender sender = new MessageSender();
