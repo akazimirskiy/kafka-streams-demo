@@ -5,21 +5,24 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.serialization.Serializer;
+import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
-import org.apache.kafka.streams.kstream.Consumed;
-import org.apache.kafka.streams.kstream.KStream;
-import org.apache.kafka.streams.kstream.TimeWindows;
+import org.apache.kafka.streams.kstream.*;
+import org.apache.kafka.streams.state.WindowStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.shaded.com.fasterxml.jackson.databind.ser.std.ClassSerializer;
 import ru.kazimir.kafka.message.MessageData;
 import ru.kazimir.kafka.message.StreamMessage;
 import ru.kazimir.kafka.message.StreamMessageDeserializer;
 import ru.kazimir.kafka.message.StreamMessageSerializer;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 
@@ -33,6 +36,8 @@ public class StreamAnalyzer {
         Serde<StreamMessage> streamMessageSerdes = Serdes.serdeFrom(
                 new StreamMessageSerializer(),
                 new StreamMessageDeserializer());
+        Serde<String> stringSerde = Serdes.String();
+        Serde<ValueAggregator> aggregatorSerde = Serdes.serdeFrom(Serializer)
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "streaming-analytics-pipe");
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, KafkaConfigurator.getKafkaProps().get(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG));
@@ -64,7 +69,17 @@ public class StreamAnalyzer {
 
         //Create a window of 5 seconds
         TimeWindows tumblingWindow = TimeWindows.of(Duration.ofSeconds(5)).grace(Duration.ZERO);
+        Initializer<ValueAggregator> valueAggregatorInitializer = ValueAggregator::new;
+        Aggregator<String, StreamMessage, ValueAggregator> valueAdder =
+                (key, value, aggregate) -> aggregate.add(value.getMessageData().getBusinessValue().floatValue()); //TODO put function supplier here
 
+        KTable<Windowed<String>, ValueAggregator> messageSummary = messageStream.groupBy(
+                (key, value) -> value.getMessageData().getMessageType().toString(), Grouped.with(stringSerde, streamMessageSerdes))
+                .windowedBy(tumblingWindow).aggregate(valueAggregatorInitializer, valueAdder, Materialized.<String, ValueAggregator,
+                                WindowStore<Bytes, byte[]>>as(
+                                "time-windowed-aggregate-store")
+                        .withValueSerde(aggregatorSerde));
+        )
 
         final Topology topology = streamsBuilder.build();
         log.info(topology.describe().toString());
