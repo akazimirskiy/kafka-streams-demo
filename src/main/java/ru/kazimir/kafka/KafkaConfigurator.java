@@ -12,8 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
-import ru.kazimir.kafka.message.StreamMessageDeserializer;
-import ru.kazimir.kafka.message.StreamMessageSerializer;
+import ru.kazimir.kafka.message.ObjectDeserializer;
+import ru.kazimir.kafka.message.ObjectSerializer;
 
 import java.util.Collections;
 import java.util.Objects;
@@ -30,8 +30,8 @@ public class KafkaConfigurator {
             kafkaProps = new Properties();
             kafkaProps.put("key.serializer", StringSerializer.class);
             kafkaProps.put("key.deserializer", StringDeserializer.class);
-            kafkaProps.put("value.serializer", StreamMessageSerializer.class);
-            kafkaProps.put("value.deserializer", StreamMessageDeserializer.class);
+            kafkaProps.put("value.serializer", ObjectSerializer.class);
+            kafkaProps.put("value.deserializer", ObjectDeserializer.class);
             kafkaProps.put(StreamsConfig.APPLICATION_ID_CONFIG, "kafka-streams-demo");
             kafkaProps.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
             kafkaProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");}

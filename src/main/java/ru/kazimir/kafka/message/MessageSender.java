@@ -12,13 +12,13 @@ import java.util.concurrent.ExecutionException;
 
 public class MessageSender {
     private static final Logger log = LoggerFactory.getLogger(MessageSender.class);
-    private final Producer<String, StreamMessage> messageProducer;
+    private final Producer<String, StreamMessageImpl> messageProducer;
     public MessageSender() {
         messageProducer = new KafkaProducer<>(KafkaConfigurator.getKafkaProps());
     }
-    public void send(StreamMessage message) throws ExecutionException, InterruptedException {
-        ProducerRecord<String, StreamMessage> record = new ProducerRecord<>(Constants.STREAMING_TOPIC_NAME, message);
+    public void send(StreamMessageImpl message) throws ExecutionException, InterruptedException {
+        ProducerRecord<String, StreamMessageImpl> record = new ProducerRecord<>(Constants.STREAMING_TOPIC_NAME, message);
         messageProducer.send(record).get();
-//        log.info("Message sent " + message.getMessageData());
+        //log.info("Message sent " + message);
     }
 }

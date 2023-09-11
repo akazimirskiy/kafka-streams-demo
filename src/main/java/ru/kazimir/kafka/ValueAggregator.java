@@ -7,7 +7,7 @@ import ru.kazimir.kafka.message.MessageType;
 public class ValueAggregator {
 
     MessageType type;
-    Double totalValue;
+    float totalValue;
 
     public ValueAggregator add(float value) {
         totalValue += value;

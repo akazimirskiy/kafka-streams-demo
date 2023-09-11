@@ -2,8 +2,14 @@ package ru.kazimir.kafka;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.kazimir.kafka.message.MessageData;
 import ru.kazimir.kafka.message.MessageGenerator;
 import ru.kazimir.kafka.message.MessageSender;
+import ru.kazimir.kafka.message.MessageType;
+import ru.kazimir.kafka.message.ObjectDeserializer;
+import ru.kazimir.kafka.message.ObjectSerializer;
+import ru.kazimir.kafka.message.StreamMessage;
+import ru.kazimir.kafka.message.StreamMessageImpl;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;

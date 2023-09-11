@@ -42,10 +42,10 @@ public class MessageGenerator extends Thread {
         doStop = true;
     }
 
-    private StreamMessage generateMessage() {
-        return () -> new MessageData(
+    private StreamMessageImpl generateMessage() {
+        return new StreamMessageImpl(new MessageData(
                 getGeneratorName(),
                 Arrays.asList(MessageType.values()).get((new Random()).nextInt((MessageType.values().length))),
-                (new Random()).nextFloat(10f));
+                (new Random()).nextFloat(10f)));
     }
 }

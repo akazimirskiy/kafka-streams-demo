@@ -1,11 +1,10 @@
 package ru.kazimir.kafka;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
@@ -15,14 +14,13 @@ import org.apache.kafka.streams.kstream.*;
 import org.apache.kafka.streams.state.WindowStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.ser.std.ClassSerializer;
 import ru.kazimir.kafka.message.MessageData;
-import ru.kazimir.kafka.message.StreamMessage;
-import ru.kazimir.kafka.message.StreamMessageDeserializer;
-import ru.kazimir.kafka.message.StreamMessageSerializer;
+import ru.kazimir.kafka.message.MessageDataDeserializer;
+import ru.kazimir.kafka.message.ObjectDeserializer;
+import ru.kazimir.kafka.message.ObjectSerializer;
+import ru.kazimir.kafka.message.StreamMessageImpl;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 
@@ -33,16 +31,19 @@ public class StreamAnalyzer {
     CountDownLatch latch;
 
     public void start() {
-        Serde<StreamMessage> streamMessageSerdes = Serdes.serdeFrom(
-                new StreamMessageSerializer(),
-                new StreamMessageDeserializer());
+        Serde<MessageData> messageDataSerdes = Serdes.serdeFrom(
+                new ObjectSerializer<>(),
+                new ObjectDeserializer<>(MessageData.class));
+        Deserializer<MessageData> messageDataDeserializer = new MessageDataDeserializer();
         Serde<String> stringSerde = Serdes.String();
-        Serde<ValueAggregator> aggregatorSerde = Serdes.serdeFrom(Serializer)
+        Serde<ValueAggregator> aggregatorSerde = Serdes.serdeFrom(
+                new ObjectSerializer<>(),
+                new ObjectDeserializer<>(ValueAggregator.class));
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "streaming-analytics-pipe");
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, KafkaConfigurator.getKafkaProps().get(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG));
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, streamMessageSerdes.getClass());
+        props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,KafkaConfigurator.getKafkaProps().get(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG));
         //For immediate results during testing
         props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
@@ -51,35 +52,43 @@ public class StreamAnalyzer {
         final StreamsBuilder streamsBuilder = new StreamsBuilder();
         KStream<String, String> objectStream = streamsBuilder.stream(
                 Constants.STREAMING_TOPIC_NAME, Consumed.with(Serdes.String(), Serdes.String()));
+//        objectStream.peek((key, value) -> log.info("Received object " + value));
 
-        KStream<String, StreamMessage> messageStream = objectStream.mapValues(
-                value -> {
+        KStream<String, MessageData> messageStream = objectStream.mapValues(
+                inputJson -> {
                     try {
-                        MessageData messageData = objectMapper.readValue(value, MessageData.class);
-                        return () -> messageData;
-                    } catch (JsonProcessingException e) {
-                        log.info("Failed parsing message. Skipping object: {}", value);
+                        return messageDataDeserializer.deserialize(Constants.STREAMING_TOPIC_NAME, inputJson.getBytes());
                     }
-                    return null;
+                    catch(Exception e) {
+                        log.warn("ERROR : Cannot convert JSON {}. Error : {}", inputJson, e.getMessage());
+                        return null;
+                    }
                 }
         );
+        //messageStream.peek((key, value) -> log.info("Received message " + value));
 
-        streamsBuilder.stream(Constants.STREAMING_TOPIC_NAME, Consumed.with(Serdes.String(), streamMessageSerdes));
-        messageStream.peek(((key, value) -> log.info("Received message " + value.getMessageData())));
+        Initializer<ValueAggregator> valueAggregatorInitializer = ValueAggregator::new;
+        Aggregator<String, MessageData, ValueAggregator> valueAdder =
+                (key, value, aggregate) -> aggregate.add(value.getBusinessValue().floatValue()); //TODO put function supplier here
 
         //Create a window of 5 seconds
         TimeWindows tumblingWindow = TimeWindows.of(Duration.ofSeconds(5)).grace(Duration.ZERO);
-        Initializer<ValueAggregator> valueAggregatorInitializer = ValueAggregator::new;
-        Aggregator<String, StreamMessage, ValueAggregator> valueAdder =
-                (key, value, aggregate) -> aggregate.add(value.getMessageData().getBusinessValue().floatValue()); //TODO put function supplier here
-
         KTable<Windowed<String>, ValueAggregator> messageSummary = messageStream.groupBy(
-                (key, value) -> value.getMessageData().getMessageType().toString(), Grouped.with(stringSerde, streamMessageSerdes))
-                .windowedBy(tumblingWindow).aggregate(valueAggregatorInitializer, valueAdder, Materialized.<String, ValueAggregator,
-                                WindowStore<Bytes, byte[]>>as(
-                                "time-windowed-aggregate-store")
-                        .withValueSerde(aggregatorSerde));
-        )
+                (key, value) -> value.getMessageType().toString(),
+                        Grouped.with(stringSerde, messageDataSerdes))
+                .windowedBy(tumblingWindow).aggregate(
+                        valueAggregatorInitializer,
+                        valueAdder,
+                        Materialized
+                                .<String, ValueAggregator, WindowStore<Bytes, byte[]>>as("time-windowed-aggregate-store")
+                                .withValueSerde(aggregatorSerde))
+                .suppress(
+                        Suppressed
+                                .untilWindowCloses(
+                                        Suppressed.BufferConfig
+                                                .unbounded()
+                                                .shutDownWhenFull()));
+        messageSummary.toStream().foreach((key, value)->log.info("{} = {}", value.getType(), value.getTotalValue()));
 
         final Topology topology = streamsBuilder.build();
         log.info(topology.describe().toString());
