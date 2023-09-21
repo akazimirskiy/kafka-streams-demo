@@ -17,7 +17,7 @@ public class MessageSender {
         messageProducer = new KafkaProducer<>(KafkaConfigurator.getKafkaProps());
     }
     public void send(StreamMessageImpl message) throws ExecutionException, InterruptedException {
-        ProducerRecord<String, StreamMessageImpl> record = new ProducerRecord<>(Constants.STREAMING_TOPIC_NAME, message);
+        ProducerRecord<String, StreamMessageImpl> record = new ProducerRecord<>(Constants.STREAMING_TOPIC_NAME, message.getMessageData().getMessageType().name(), message);
         messageProducer.send(record).get();
         //log.info("Message sent " + message);
     }

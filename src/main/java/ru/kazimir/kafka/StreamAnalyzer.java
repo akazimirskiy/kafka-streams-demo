@@ -5,22 +5,18 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.*;
-import org.apache.kafka.streams.state.WindowStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.kazimir.kafka.message.MessageData;
-import ru.kazimir.kafka.message.MessageDataDeserializer;
 import ru.kazimir.kafka.message.ObjectDeserializer;
 import ru.kazimir.kafka.message.ObjectSerializer;
 import ru.kazimir.kafka.message.StreamMessageImpl;
 
-import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 
@@ -31,11 +27,11 @@ public class StreamAnalyzer {
     CountDownLatch latch;
 
     public void start() {
-        Serde<MessageData> messageDataSerdes = Serdes.serdeFrom(
+        Serde<MessageData> messageDataSerde = Serdes.serdeFrom(
                 new ObjectSerializer<>(),
                 new ObjectDeserializer<>(MessageData.class));
-        Deserializer<MessageData> messageDataDeserializer = new MessageDataDeserializer();
-        Serde<String> stringSerde = Serdes.String();
+        Deserializer<StreamMessageImpl> messageDataDeserializer = new ObjectDeserializer<>(StreamMessageImpl.class);//MessageDataDeserializer();
+        Serde<String> keySerde = Serdes.String();
         Serde<ValueAggregator> aggregatorSerde = Serdes.serdeFrom(
                 new ObjectSerializer<>(),
                 new ObjectDeserializer<>(ValueAggregator.class));
@@ -52,12 +48,12 @@ public class StreamAnalyzer {
         final StreamsBuilder streamsBuilder = new StreamsBuilder();
         KStream<String, String> objectStream = streamsBuilder.stream(
                 Constants.STREAMING_TOPIC_NAME, Consumed.with(Serdes.String(), Serdes.String()));
-//        objectStream.peek((key, value) -> log.info("Received object " + value));
+        //objectStream.peek((key, value) -> log.info("Received object key = " + key + ", value = " + value));
 
         KStream<String, MessageData> messageStream = objectStream.mapValues(
                 inputJson -> {
                     try {
-                        return messageDataDeserializer.deserialize(Constants.STREAMING_TOPIC_NAME, inputJson.getBytes());
+                        return messageDataDeserializer.deserialize(Constants.STREAMING_TOPIC_NAME, inputJson.getBytes()).getMessageData();
                     }
                     catch(Exception e) {
                         log.warn("ERROR : Cannot convert JSON {}. Error : {}", inputJson, e.getMessage());
@@ -65,30 +61,49 @@ public class StreamAnalyzer {
                     }
                 }
         );
-        //messageStream.peek((key, value) -> log.info("Received message " + value));
 
         Initializer<ValueAggregator> valueAggregatorInitializer = ValueAggregator::new;
         Aggregator<String, MessageData, ValueAggregator> valueAdder =
-                (key, value, aggregate) -> aggregate.add(value.getBusinessValue().floatValue()); //TODO put function supplier here
+                (key, value, aggregator) -> aggregator.add(value.getBusinessValue()); //TODO put function supplier here
+
+        KTable<String, ValueAggregator> messageValueSummary = messageStream.groupBy(
+                new KeyValueMapper<String, MessageData, String>() {
+                    @Override
+                    public String apply(String key, MessageData value) {
+                        return key;
+                    }
+                }, Grouped.with(Serdes.String(), messageDataSerde)
+        ).aggregate(valueAggregatorInitializer, valueAdder);
+
+        messageValueSummary.toStream().peek((key, value)->log.info("Aggregated message key = " + key + ", value = " + value.getTotalValue()));
+
+        //messageStream.peek((key, value) -> log.info("Received message key = " + key + ", value = " + value));
+
 
         //Create a window of 5 seconds
-        TimeWindows tumblingWindow = TimeWindows.of(Duration.ofSeconds(5)).grace(Duration.ZERO);
-        KTable<Windowed<String>, ValueAggregator> messageSummary = messageStream.groupBy(
-                (key, value) -> value.getMessageType().toString(),
-                        Grouped.with(stringSerde, messageDataSerdes))
-                .windowedBy(tumblingWindow).aggregate(
-                        valueAggregatorInitializer,
-                        valueAdder,
-                        Materialized
-                                .<String, ValueAggregator, WindowStore<Bytes, byte[]>>as("time-windowed-aggregate-store")
-                                .withValueSerde(aggregatorSerde))
-                .suppress(
-                        Suppressed
-                                .untilWindowCloses(
-                                        Suppressed.BufferConfig
-                                                .unbounded()
-                                                .shutDownWhenFull()));
-        messageSummary.toStream().foreach((key, value)->log.info("{} = {}", value.getType(), value.getTotalValue()));
+//        TimeWindows tumblingWindow = TimeWindows.of(Duration.ofSeconds(5)).grace(Duration.ZERO);
+//
+//        KTable<String, ValueAggregator> messageSummary =
+//                messageStream.groupBy((key, value) -> value.getMessageType().toString(),
+//                                Grouped.with(keySerde, messageDataSerde))
+//                        .aggregate(valueAggregatorInitializer, valueAdder);
+//        messageSummary.toStream().foreach((k, v)->log.info("Key = {}. Value = {}", k, v.totalValue));
+//        KTable<Windowed<String>, ValueAggregator> messageSummary = messageStream.groupBy(
+//                (key, value) -> value.getMessageType().toString(),
+//                        Grouped.with(keySerde, messageDataSerde))
+//                .windowedBy(tumblingWindow).aggregate(
+//                        valueAggregatorInitializer,
+//                        valueAdder,
+//                        Materialized
+//                                .<String, ValueAggregator, WindowStore<Bytes, byte[]>>as("time-windowed-aggregate-store")
+//                                .withValueSerde(aggregatorSerde))
+//                .suppress(
+//                        Suppressed
+//                                .untilWindowCloses(
+//                                        Suppressed.BufferConfig
+//                                                .unbounded()
+//                                                .shutDownWhenFull()));
+        //messageSummary.toStream().foreach((key, value)->log.info("{} = {}", value.getType(), value.getTotalValue()));
 
         final Topology topology = streamsBuilder.build();
         log.info(topology.describe().toString());
