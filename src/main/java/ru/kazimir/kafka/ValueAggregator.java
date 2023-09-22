@@ -1,7 +1,6 @@
 package ru.kazimir.kafka;
 
 import lombok.Data;
-import ru.kazimir.kafka.message.MessageType;
 
 @Data
 public class ValueAggregator {

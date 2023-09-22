@@ -1,6 +1,5 @@
 package ru.kazimir.kafka;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
@@ -10,9 +9,17 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
-import org.apache.kafka.streams.kstream.*;
+import org.apache.kafka.streams.kstream.Aggregator;
+import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.Grouped;
+import org.apache.kafka.streams.kstream.Initializer;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.kstream.Suppressed;
+import org.apache.kafka.streams.kstream.TimeWindows;
+import org.apache.kafka.streams.kstream.Windowed;
 import org.apache.kafka.streams.state.WindowStore;
-import org.apache.kafka.streams.state.internals.CachingKeyValueStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.kazimir.kafka.message.MessageData;
@@ -26,7 +33,6 @@ import java.util.concurrent.CountDownLatch;
 
 public class StreamAnalyzer {
     Logger log = LoggerFactory.getLogger(this.getClass().getSimpleName());
-    ObjectMapper objectMapper = new ObjectMapper();
     KafkaStreams streams;
     CountDownLatch latch;
 
@@ -34,7 +40,7 @@ public class StreamAnalyzer {
         Serde<MessageData> messageDataSerde = Serdes.serdeFrom(
                 new ObjectSerializer<>(),
                 new ObjectDeserializer<>(MessageData.class));
-        Deserializer<StreamMessageImpl> messageDataDeserializer = new ObjectDeserializer<>(StreamMessageImpl.class);//MessageDataDeserializer();
+        Deserializer<StreamMessageImpl> messageDataDeserializer = new ObjectDeserializer<>(StreamMessageImpl.class);
         Serde<String> keySerde = Serdes.String();
         Serde<ValueAggregator> aggregatorSerde = Serdes.serdeFrom(
                 new ObjectSerializer<>(),
@@ -68,7 +74,7 @@ public class StreamAnalyzer {
 
         Initializer<ValueAggregator> valueAggregatorInitializer = ValueAggregator::new;
         Aggregator<String, MessageData, ValueAggregator> valueAdder =
-                (key, value, aggregator) -> aggregator.add(value.getBusinessValue()); //TODO put function supplier here
+                (key, value, aggregator) -> aggregator.add(value.getBusinessValue());
 
         //Create a window of 5 seconds
         TimeWindows tumblingWindow = TimeWindows.ofSizeWithNoGrace(Duration.ofSeconds(5));
